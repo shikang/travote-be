@@ -13,7 +13,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
-	"github.com/aws/aws-sdk-go/service/dynamodb/expression"
 )
 
 var db = dynamodb.New(session.New(), aws.NewConfig().WithRegion("ap-southeast-1"))
@@ -25,6 +24,7 @@ type ErrorJson struct {
 // Place - Caps for field names, because of json.Marshal requirements
 type Place struct {
 	ID       string `json:"id"`
+	Abbr     string `json:"abbr"`
 	Name     string `json:"name"`
 	Master   string `json:"master"`
 	Category string `json:"category"`
@@ -42,15 +42,25 @@ type Place struct {
 }
 
 // GetPlacesWithoutAnyFilters - No filter get
-func GetPlacesWithoutAnyFilters(limit int64) ([]Place, error) {
-	// Build the scan input parameters
-	params := &dynamodb.ScanInput{
+func GetPlacesWithoutAnyFilters(abbr string, limit int64) ([]Place, error) {
+	// Build the query input parameters
+	params := &dynamodb.QueryInput{
 		TableName: aws.String("Places"),
-		Limit:     aws.Int64(limit),
+		KeyConditions: map[string]*dynamodb.Condition{
+			"abbr": {
+				ComparisonOperator: aws.String("EQ"),
+				AttributeValueList: []*dynamodb.AttributeValue{
+					{
+						S: aws.String(abbr),
+					},
+				},
+			},
+		},
+		Limit: aws.Int64(limit),
 	}
 
 	// Make the DynamoDB Query API call
-	result, err := db.Scan(params)
+	result, err := db.Query(params)
 	if err != nil {
 		return nil, err
 	}
@@ -66,24 +76,25 @@ func GetPlacesWithoutAnyFilters(limit int64) ([]Place, error) {
 
 // GetPlacesWithFilter - Filter get
 func GetPlacesWithFilter(filter string, val string, limit int64) ([]Place, error) {
-	filt := expression.Name(filter).Equal(expression.Value(val))
-	expr, err := expression.NewBuilder().WithFilter(filt).Build()
-	if err != nil {
-		return nil, err
-	}
-
 	// Build the query input parameters
-	params := &dynamodb.ScanInput{
-		ExpressionAttributeNames:  expr.Names(),
-		ExpressionAttributeValues: expr.Values(),
-		FilterExpression:          expr.Filter(),
-		ProjectionExpression:      expr.Projection(),
-		TableName:                 aws.String("Places"),
-		Limit:                     aws.Int64(limit),
+	params := &dynamodb.QueryInput{
+		TableName: aws.String("Places"),
+		IndexName: aws.String(filter + "-index"),
+		KeyConditions: map[string]*dynamodb.Condition{
+			filter: {
+				ComparisonOperator: aws.String("EQ"),
+				AttributeValueList: []*dynamodb.AttributeValue{
+					{
+						S: aws.String(val),
+					},
+				},
+			},
+		},
+		Limit: aws.Int64(limit),
 	}
 
 	// Make the DynamoDB Query API call
-	result, err := db.Scan(params)
+	result, err := db.Query(params)
 	if err != nil {
 		return nil, err
 	}
@@ -100,16 +111,16 @@ func GetPlacesWithFilter(filter string, val string, limit int64) ([]Place, error
 // GetPlaces - Get wrapper
 func GetPlaces(filter string, val string, limit int64) ([]Place, error) {
 	switch filter {
-	case "any":
-		return GetPlacesWithoutAnyFilters(limit)
+	case "abbr":
+		return GetPlacesWithoutAnyFilters(val, limit)
 	default:
 		return GetPlacesWithFilter(filter, val, limit)
 	}
 }
 
 // GetPlacesResponse - Get response
-func GetPlacesResponse(filters string, val string, limit int64) (events.APIGatewayProxyResponse, error) {
-	places, err := GetPlaces(filters, val, limit)
+func GetPlacesResponse(filter string, val string, limit int64) (events.APIGatewayProxyResponse, error) {
+	places, err := GetPlaces(filter, val, limit)
 	if err != nil {
 		apiResponse := GenerateErrorResponse(err.Error(), http.StatusInternalServerError)
 		return apiResponse, err
@@ -146,17 +157,21 @@ func GenerateErrorResponse(err string, statusCode int) events.APIGatewayProxyRes
 // HandleGetPlacesRequest - Lambda function
 func HandleGetPlacesRequest(request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	if request.HTTPMethod == "GET" {
-		var queryLimit int64 = 10
+		var queryLimit int64 = 50
 		if limit, ok := request.QueryStringParameters["limit"]; ok {
 			queryLimit, _ = strconv.ParseInt(limit, 10, 64)
 		}
 
-		if category, ok := request.QueryStringParameters["category"]; ok {
+		if abbr, ok := request.QueryStringParameters["abbr"]; ok {
+			fmt.Print("[GET] Get places with abbr filter: " + abbr)
+			return GetPlacesResponse("abbr", abbr, queryLimit)
+		} else if category, ok := request.QueryStringParameters["category"]; ok {
 			fmt.Print("[GET] Get places with category filter: " + category)
 			return GetPlacesResponse("category", category, queryLimit)
 		} else {
-			fmt.Print("[GET] Get places without filter")
-			return GetPlacesResponse("any", "", queryLimit)
+			err := errors.New("Please specify abbr or category")
+			apiResponse := GenerateErrorResponse(err.Error(), http.StatusInternalServerError)
+			return apiResponse, err
 		}
 	} else {
 		err := errors.New("Method not allowed")
