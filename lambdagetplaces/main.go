@@ -17,30 +17,6 @@ import (
 
 var db = dynamodb.New(session.New(), aws.NewConfig().WithRegion("ap-southeast-1"))
 
-type ErrorJson struct {
-	ErrorMsg string `json:"error"`
-}
-
-// Place - Caps for field names, because of json.Marshal requirements
-type Place struct {
-	ID       string `json:"id"`
-	Abbr     string `json:"abbr"`
-	Name     string `json:"name"`
-	Master   string `json:"master"`
-	Category string `json:"category"`
-	Desc     string `json:"desc"`
-	Lat      string `json:"lat"`
-	Long     string `json:"long"`
-	Address  string `json:"address"`
-	Postal   string `json:"postal"`
-	Contact  string `json:"contact"`
-	Hours    string `json:"hours"`
-	Website  string `json:"website"`
-	Email    string `json:"email"`
-	Zone     string `json:"zone"`
-	Ext1     string `json:"ext_1"`
-}
-
 // GetPlacesWithoutAnyFilters - No filter get
 func GetPlacesWithoutAnyFilters(abbr string, limit int64) ([]Place, error) {
 	// Build the query input parameters
@@ -139,19 +115,6 @@ func GetPlacesResponse(filter string, val string, limit int64) (events.APIGatewa
 		Body:       string(responseBody),
 		StatusCode: http.StatusOK}
 	return apiResponse, nil
-}
-
-// GenerateErrorResponse - Create error response
-func GenerateErrorResponse(err string, statusCode int) events.APIGatewayProxyResponse {
-	errJSON := &ErrorJson{ErrorMsg: err}
-	errBody, _ := json.Marshal(errJSON)
-	apiResponse := events.APIGatewayProxyResponse{
-		Headers: map[string]string{
-			"Access-Control-Allow-Origin": "*",
-		},
-		Body:       string(errBody),
-		StatusCode: statusCode}
-	return apiResponse
 }
 
 // HandleGetPlacesRequest - Lambda function
