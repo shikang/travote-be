@@ -8,19 +8,19 @@ if "%1"=="" (
 	exit 1
 )
 
-if exist build (
-	RD /S /Q build
+if exist out (
+	RD /S /Q out
 )
 
-mkdir build
+mkdir out
 
 echo "Copying Dependencies..."
-copy /Y utils\*.go build\.
-copy /Y common\*.go build\.
-copy /Y %1\*.go build\.
+copy /Y utils\*.go out\.
+copy /Y common\*.go out\.
+copy /Y %1\*.go out\.
 
 echo "Building %1 ..."
-cd build
+cd out
 
 setlocal enabledelayedexpansion
 
