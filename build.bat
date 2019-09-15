@@ -8,19 +8,19 @@ if "%1"=="" (
 	exit 1
 )
 
-if exist out (
-	RD /S /Q out
+if exist build (
+	RD /S /Q build
 )
 
-mkdir out
+mkdir build
 
 echo "Copying Dependencies..."
-copy /Y utils\*.go out\.
-copy /Y common\*.go out\.
-copy /Y %1\*.go out\.
+copy /Y utils\*.go build\.
+copy /Y structs\*.go build\.
+copy /Y %1\*.go build\.
 
 echo "Building %1 ..."
-cd out
+cd build
 
 setlocal enabledelayedexpansion
 
@@ -36,7 +36,17 @@ go build -o main %gofiles%
 echo "Zipping..."
 %GOPATH%\bin\build-lambda-zip.exe -o main.zip main
 
-echo "Output: ../build/main.zip"
+cd ..
+
+if exist out (
+	RD /S /Q out
+)
+
+mkdir out
+
+copy /Y build\main.zip out\.
+
+echo "Output: ../out/main.zip"
 
 popd
 pause
