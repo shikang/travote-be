@@ -19,6 +19,15 @@ copy /Y utils\*.go build\.
 copy /Y structs\*.go build\.
 copy /Y %1\*.go build\.
 
+if exist %1\dependencies.txt (
+	for /F "tokens=*" %%i in (%1\dependencies.txt) do (
+		echo "Adding %%i Dependencies..."
+		copy /Y %%i\*.go build\.
+	)
+) else (
+	echo "No additional Dependencies!"
+)
+
 echo "Building %1 ..."
 cd build
 
